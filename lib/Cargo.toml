@@ -1,5 +1,5 @@
 [package]
-name = "lib"
+name = "moonrs-lib"
 version = "0.1.0"
 authors = ["paulyc <paulyc@quetzalcoatl.us>"]
 edition = "2018"
@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 vsop87 = "2.0"
+hifitime = "1.0"
