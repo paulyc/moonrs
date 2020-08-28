@@ -1,15 +1,13 @@
 extern crate moonrs_lib;
-extern crate vsop87;
+use moonrs_lib::nextmoon;
 extern crate hifitime;
-
-use moonrs_lib::nextmoons;
 use hifitime::Epoch;
 
 pub fn main() {
-    let mut jde = Epoch::from_gregorian_utc(2020, 8, 20, 0, 0, 0, 0).as_jde_utc_days();
+    let mut jde = Epoch::from_gregorian_utc(2020, 8, 18, 0, 0, 0, 0);
     loop {
-        jde = nextmoons(jde);
-        jde += 1.0/24.0;
+        nextmoon(&mut jde);
+        jde.mut_add_secs(13.0 * hifitime::SECONDS_PER_DAY);
     }
 }
 
