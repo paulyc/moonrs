@@ -1,13 +1,14 @@
 extern crate tetrabiblos_lib;
-use tetrabiblos_lib::nextmoon;
+use tetrabiblos_lib::moon::MoonFinder;
+
 extern crate hifitime;
 use hifitime::Epoch;
 
 pub fn main() {
     let mut jde = Epoch::from_gregorian_utc(2020, 8, 18, 0, 0, 0, 0);
     loop {
-        nextmoon(&mut jde);
-        jde.mut_add_secs(13.0 * hifitime::SECONDS_PER_DAY);
+        jde.mut_next_moon();
+        jde.mut_add_days(13.0);
     }
 }
 
