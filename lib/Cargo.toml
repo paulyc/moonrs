@@ -1,5 +1,5 @@
 [package]
-name = "moonrs-lib"
+name = "tetrabiblos-lib"
 version = "0.1.0"
 authors = ["paulyc <paulyc@quetzalcoatl.us>"]
 edition = "2018"

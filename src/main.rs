@@ -1,5 +1,5 @@
-extern crate moonrs_lib;
-use moonrs_lib::nextmoon;
+extern crate tetrabiblos_lib;
+use tetrabiblos_lib::nextmoon;
 extern crate hifitime;
 use hifitime::Epoch;
 

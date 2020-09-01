@@ -1,7 +1,12 @@
+
 extern crate hifitime;
-extern crate vsop87;
+pub use hifitime::*;
+
+pub mod moon {
 
 use hifitime::Epoch;
+
+extern crate vsop87;
 use vsop87::vsop87a;
 use vsop87::RectangularCoordinates;
 
@@ -27,8 +32,8 @@ enum PhaseDiffState {
     Negative,
 }
 
-pub fn nextmoon(jde: &mut Epoch) -> Epoch {
-    let (mut dp_dt, mut last_phase, mut last_jde) = (PhaseDiffState::Initial, 1.0, 0.0);
+pub fn nextmoon(jde: &Epoch) -> Epoch {
+    let (mut jde, mut dp_dt, mut last_phase, mut last_jde) = (jde.clone(), PhaseDiffState::Initial, 1.0, 0.0);
 
     loop {
         let helio_earth = vsop87a::earth(jde.as_jde_tai_days());
@@ -67,7 +72,7 @@ pub fn nextmoon(jde: &mut Epoch) -> Epoch {
                     // full moon
                     let e = Epoch::from_jde_tai(last_jde);
                     println!("Your full moon approx {}", e.as_gregorian_utc_str());
-                    jde.mut_add_secs(13.0 * hifitime::SECONDS_PER_DAY);
+                    jde.mut_add_days(13.0);
                     (PhaseDiffState::Positive, phase, jde.as_jde_tai_days())
                 }
             }
@@ -85,6 +90,7 @@ pub fn nextmoon(jde: &mut Epoch) -> Epoch {
 
 #[cfg(test)]
 mod tests {
+    extern crate hifitime;
     use super::nextmoon;
     use super::Epoch;
 
@@ -117,4 +123,96 @@ mod tests {
             false
         );
     }
+}
+}
+
+pub mod tetrabiblos {
+extern crate hifitime;
+use super::moon::nextmoon;
+
+#[derive(Debug)]
+pub enum Month {
+    Capricornus,
+    Aquarius,
+    Pisces,
+    Aries,
+    Taurus,
+    Gemini,
+    Cancer,
+    Leo,
+    Virgo,
+    Libra,
+    Scorpius,
+    Sagittarius,
+}
+
+#[derive(Debug)]
+pub enum MayanEpoch {
+    // Yeah I'm the only one calling this -1 but, I'm not sure how else to differentiate
+    // the first and second 13.0.0.0.0 because I do know 1.0.0.0.0.0 is something else
+    // and it's like bowling, the first one only went up to 14.0.0.0.0 - 1
+    // but the rest go to 20.0.0.0.0 - 1 I'm sure there is a way but it's too much
+    // detail for Google search results to handle LMK.
+    First,  // Mayan Long Count -1. 0.0.0.0.0   4  June -8238 Julian    JD = -1287717
+    Second, // Mayan Long Count -1.13.0.0.0.0   6  Sep  -3113 Julian    JD = 584283
+    Third,  // Mayan Long Count  0.13.0.0.0.0   21 Dec   2012 Gregorian JD = 2456283
+}
+
+const FIRST_MAYAN_EPOCH_JD: i64 =  -1287717;
+const SECOND_MAYAN_EPOCH_JD: i64 =   584283;
+const THIRD_MAYAN_EPOCH_JD: i64 =   2456283;
+fn FIRST_EPOCH_YEAR_AS_OF_JAN_2013() -> i32 {
+    (((THIRD_MAYAN_EPOCH_JD-FIRST_MAYAN_EPOCH_JD) as f64)/hifitime::DAYS_PER_YEAR).floor() as i32
+}
+fn FIRST_EPOCH_YEAR_AS_OF_JAN_2020() -> i32 {
+    FIRST_EPOCH_YEAR_AS_OF_JAN_2013() + 7 // 10257
+}
+fn SECOND_EPOCH_YEAR_AS_OF_JAN_2013() -> i32 {
+    (((THIRD_MAYAN_EPOCH_JD-SECOND_MAYAN_EPOCH_JD) as f64)/hifitime::DAYS_PER_YEAR).floor() as i32
+}
+fn SECOND_EPOCH_YEAR_AS_OF_JAN_2020() -> i32 {
+    SECOND_EPOCH_YEAR_AS_OF_JAN_2013() + 7 // 5132
+}
+
+pub struct Date {
+    pub epoch: MayanEpoch,
+    pub precessional_era: i8,
+    pub year: i32,
+    pub month: Month,
+    pub day: i8,
+}
+
+impl Date {
+    pub fn zero() -> Date {
+        Date {
+            epoch: MayanEpoch::Second,
+            precessional_era: 0,
+            year: 0,
+            month: Month::Capricornus,
+            day: 0,
+        }
+    }
+}
+pub trait ConvertibleToTetrabiblos {
+    fn to_tetrabiblos_date(&self) -> Date;
+}
+
+impl ConvertibleToTetrabiblos for hifitime::Epoch {
+    fn to_tetrabiblos_date(&self) -> Date {
+        let mut d = self.clone();
+        d.mut_sub_days(28.0);
+        let monthmoon = nextmoon(&mut d);
+        Date::zero()
+    }
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_years() {
+        assert_eq!(super::FIRST_EPOCH_YEAR_AS_OF_JAN_2013(), 10250);
+        assert_eq!(super::FIRST_EPOCH_YEAR_AS_OF_JAN_2020(), 10257);
+        assert_eq!(super::SECOND_EPOCH_YEAR_AS_OF_JAN_2013(), 5125);
+        assert_eq!(super::SECOND_EPOCH_YEAR_AS_OF_JAN_2020(), 5132);
+    }
+}
 }
