@@ -39,7 +39,7 @@ pub mod moon {
     impl MoonFinder for Epoch {
         fn mut_last_moon(self: &mut Self) {
             self.mut_next_moon();
-            self.mut_sub_days(30.0);
+            self.mut_sub_days(31.0);
             self.mut_next_moon();
         }
 
@@ -173,8 +173,19 @@ pub mod tetrabiblos {
         Sagittarius,
     }
 
+    pub trait ConvertibleMonth {
+        fn convert_from_new_moon(newmoon: Epoch) -> Month {
+            // First new moon in January has been Cap for at least all of Common Era
+            // Before Cap, Aquarius, as in -3113 (new moon in Aquarius at JD ~= 584035.28)
+            // Before Aqr, Pisces, as in -8238 (new moon in Pisces at JD ~= -1287850.72)
+            //
+            // Both of those are more or less in the center of their respective constellation
+            // so, the change would have happened around the midpoint ~= -5700
+        }
+    }
+
     #[derive(Debug)]
-    pub enum MayanEpoch {
+    pub enum PrecessionalEraEpoch {
         // Yeah I'm the only one calling this -1 but, I'm not sure how else to differentiate
         // the first and second 13.0.0.0.0 because I do know 1.0.0.0.0.0 is something else
         // and it's like bowling, the first one only went up to 14.0.0.0.0 - 1
@@ -185,18 +196,18 @@ pub mod tetrabiblos {
         Third,  // Mayan Long Count  0.13.0.0.0.0   21 Dec   2012 Gregorian JD = 2456283
     }
 
-    const FIRST_MAYAN_EPOCH_JD: i64 = -1287717;
-    const SECOND_MAYAN_EPOCH_JD: i64 = 584283;
-    const THIRD_MAYAN_EPOCH_JD: i64 = 2456283;
+    const FIRST_EPOCH_JD: i64 = -1287717;
+    const SECOND_EPOCH_JD: i64 = 584283;
+    const THIRD_EPOCH_JD: i64 = 2456283;
     fn first_epoch_year_as_of_jan_2013() -> i32 {
-        (((THIRD_MAYAN_EPOCH_JD - FIRST_MAYAN_EPOCH_JD) as f64) / hifitime::DAYS_PER_YEAR).floor()
+        (((THIRD_EPOCH_JD - FIRST_EPOCH_JD) as f64) / hifitime::DAYS_PER_YEAR).floor()
             as i32
     }
     fn first_epoch_year_as_of_jan_2020() -> i32 {
         first_epoch_year_as_of_jan_2013() + 7 // 10257
     }
     fn second_epoch_year_as_of_jan_2013() -> i32 {
-        (((THIRD_MAYAN_EPOCH_JD - SECOND_MAYAN_EPOCH_JD) as f64) / hifitime::DAYS_PER_YEAR).floor()
+        (((THIRD_EPOCH_JD - SECOND_EPOCH_JD) as f64) / hifitime::DAYS_PER_YEAR).floor()
             as i32
     }
     fn second_epoch_year_as_of_jan_2020() -> i32 {
@@ -204,21 +215,21 @@ pub mod tetrabiblos {
     }
 
     pub struct Date {
-        pub epoch: MayanEpoch,
+        pub epoch: PrecessionalEraEpoch,
         pub precessional_era: i8,
         pub year: i32,
         pub month: Month,
-        pub day: i8,
+        pub day_of_month: i8,
     }
 
     impl Date {
         pub fn zero() -> Date {
             Date {
-                epoch: MayanEpoch::Second,
+                epoch: PrecessionalEraEpoch::Second,
                 precessional_era: 0,
                 year: 0,
                 month: Month::Capricornus,
-                day: 0,
+                day_of_month: 0,
             }
         }
     }
@@ -228,9 +239,16 @@ pub mod tetrabiblos {
 
     impl ConvertibleToTetrabiblos for hifitime::Epoch {
         fn to_tetrabiblos_date(&self) -> Date {
-            let mut d = self.clone();
-            let _monthmoon = d.mut_last_moon();
-            Date::zero()
+            let mut epoch = self.clone();
+            epoch.mut_last_moon();
+            let day_of_month = (epoch.as_utc_days() - self.as_utc_days()).ceil() as i8;
+            Date {
+                epoch: PrecessionalEraEpoch::Second,
+                precessional_era: 0,
+                year: 0,
+                month: Month::Capricornus,
+                day_of_month,
+            }
         }
     }
 
