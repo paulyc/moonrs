@@ -34,6 +34,7 @@ pub mod moon {
     pub trait MoonFinder {
         fn mut_last_moon(self: &mut Self);
         fn mut_next_moon(self: &mut Self);
+        fn mut_first_moon_of_solar_year(self: &mut Self);
     }
 
     impl MoonFinder for Epoch {
@@ -87,6 +88,19 @@ pub mod moon {
                 dp_dt = x;
                 last_phase = y;
                 self.mut_add_secs(hifitime::SECONDS_PER_MINUTE);
+            }
+        }
+
+        fn mut_first_moon_of_solar_year(self: &mut Self) {
+            let (y, _, _, _, _, _, _) = self.as_gregorian_utc();
+            loop {
+                let (y2, _, _, _, _, _, _) = self.as_gregorian_utc();
+                if y2 < y {
+                    self.mut_next_moon();
+                    break;
+                } else {
+                    self.mut_last_moon();
+                }
             }
         }
     }
@@ -150,14 +164,28 @@ pub mod moon {
                 false
             );
         }
+
+        #[test]
+        fn test_first_new_moon_2020() {
+            let date_in_2020 =
+                Epoch::from_gregorian_utc(2020, 8, 19, 2, 28, 0, 0).as_jde_tai_days();
+            let mut jde = Epoch::from_gregorian_utc(2020, 8, 28, 0, 0, 0, 0);
+            jde.mut_first_moon_of_solar_year();
+            let (y, m, d, _, _, _, _) = jde.as_gregorian_utc();
+            assert_eq!(y, 2020);
+            assert_eq!(m, 1);
+            assert_eq!(d, 24);
+        }
     }
 }
 
 pub mod tetrabiblos {
     extern crate hifitime;
+    use hifitime::Epoch;
     use super::moon::MoonFinder;
+    use crate::tetrabiblos::Month::{Capricornus, Libra, Sagittarius};
 
-    #[derive(Debug)]
+    #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
     pub enum Month {
         Capricornus,
         Aquarius,
@@ -173,18 +201,90 @@ pub mod tetrabiblos {
         Sagittarius,
     }
 
-    pub trait ConvertibleMonth {
-        fn convert_from_new_moon(newmoon: Epoch) -> Month {
-            // First new moon in January has been Cap for at least all of Common Era
-            // Before Cap, Aquarius, as in -3113 (new moon in Aquarius at JD ~= 584035.28)
-            // Before Aqr, Pisces, as in -8238 (new moon in Pisces at JD ~= -1287850.72)
-            //
-            // Both of those are more or less in the center of their respective constellation
-            // so, the change would have happened around the midpoint ~= -5700
+    trait ConvertibleMonthFromEpoch  {
+        fn next(m: Month) -> Month;
+        fn from_newmoon(newmoon: Epoch) -> Month;
+    }
+
+    impl ConvertibleMonthFromEpoch for Month {
+        // First new moon in January has been Cap for at least all of Common Era
+        // Before Cap, Aquarius, as in -3113 (new moon in Aquarius at JD ~= 584035.28)
+        // Before Aqr, Pisces, as in -8238 (new moon in Pisces at JD ~= -1287850.72)
+        //
+        // Both of those are more or less in the center of their respective constellation
+        // so, the change would have happened around the midpoint ~= -5700
+        fn next(m: Month) -> Month {
+            use crate::tetrabiblos::Month::*;
+            match m {
+                Capricornus => Aquarius,
+                Aquarius => Pisces,
+                Pisces => Aries,
+                Aries => Taurus,
+                Taurus  => Gemini,
+                Cancer => Leo,
+                Leo => Virgo,
+                Virgo => Libra,
+                Libra => Scorpius,
+                Scorpius => Sagittarius,
+                Sagittarius => Capricornus,
+                _ => Capricornus
+            }
+        }
+         fn from_newmoon(newmoon: Epoch) -> Month {
+            use crate::tetrabiblos::Month::*;
+             let mut newmoon = newmoon.clone();
+             newmoon.mut_last_moon();
+            let mut count = 0;
+            let (y0, _m0, _d0, _, _, _, _) = newmoon.as_gregorian_utc();
+            loop {
+                newmoon.mut_last_moon();
+                let (y, _m, _d, _, _, _, _) = newmoon.as_gregorian_utc();
+                if y < y0 {
+                    break;
+                } else {
+                    count = count + 1;
+                }
+            }
+            // wayy off for anything between about -6000 and 10000 most likely
+            let mut m: Month =
+                if y0 < -17000 {
+                    Cancer
+                } else if y0 < -13000 {
+                    Taurus
+                } else if y0 < -9000 {
+                    Aries
+                } else if y0 < -5000 {
+                    Pisces
+                } else if y0 < -1000 {
+                    Aquarius
+                } else if y0 < 3000 {
+                    Capricornus
+                } else if y0 < 7000 {
+                    Sagittarius
+                } else if y0 < 11000 {
+                    Scorpius
+                } else if y0 < 15000 {
+                    Libra
+                } else if y0 < 19000 {
+                    Virgo
+                } else if y0 < 23000 {
+                    Leo
+                } else {
+                    Capricornus
+                };
+
+            loop {
+                if count == 0 {
+                    break;
+                }
+                m = Month::next(m);
+                count = count - 1
+            }
+            m
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
     pub enum PrecessionalEraEpoch {
         // Yeah I'm the only one calling this -1 but, I'm not sure how else to differentiate
         // the first and second 13.0.0.0.0 because I do know 1.0.0.0.0.0 is something else
@@ -239,8 +339,10 @@ pub mod tetrabiblos {
 
     impl ConvertibleToTetrabiblos for hifitime::Epoch {
         fn to_tetrabiblos_date(&self) -> Date {
+            let mut firstmoon = self.clone().mut_first_moon_of_solar_year();
             let mut epoch = self.clone();
             epoch.mut_last_moon();
+            let month = Month::from_newmoon(epoch);
             let day_of_month = (epoch.as_utc_days() - self.as_utc_days()).ceil() as i8;
             Date {
                 epoch: PrecessionalEraEpoch::Second,
@@ -261,6 +363,18 @@ pub mod tetrabiblos {
             assert_eq!(first_epoch_year_as_of_jan_2020(), 10257);
             assert_eq!(second_epoch_year_as_of_jan_2013(), 5125);
             assert_eq!(second_epoch_year_as_of_jan_2020(), 5132);
+        }
+        #[test]
+        fn test_first_month_of_year() {
+            let mut jde = Epoch::from_gregorian_utc(2020, 8, 28, 0, 0, 0, 0);
+            jde.mut_first_moon_of_solar_year();
+            assert_eq!(Month::from_newmoon(jde), Month::Capricornus);
+        }
+        #[test]
+        fn test_current_month() {
+            let mut jde = Epoch::from_gregorian_utc(2020, 8, 28, 0, 0, 0, 0);
+            jde.mut_last_moon();
+            assert_eq!(Month::from_newmoon(jde), Month::Leo);
         }
     }
 }
